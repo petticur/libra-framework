@@ -40,4 +40,5 @@ runs:
     # call own action for libra_cli
     # known issue with needing to hard code the @version
     # https://github.com/orgs/community/discussions/41927
-    - uses: 0LNetworkCommunity/libra-framework/.github/actions/get_cli@main
+    # FIXME
+    # - uses: 0LNetworkCommunity/libra-framework/.github/actions/get_cli@main
