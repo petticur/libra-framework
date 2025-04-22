@@ -37,11 +37,14 @@ jobs:
 
       - name: build libra binary
         # size and performance optimized binary with profile.cli
+        # The conditional statement below looks like that because I couldn't
+        #  figure out how to put the RUSTFLAGS into a variable
         run: |
           if [[ ${{ runner.arch }} == "ARM64" ]]; then
-              CARGO_BUILD_DEFS=RUSTFLAGS=\"--cfg tokio_unstable\"
+              RUSTFLAGS="--cfg tokio_unstable" cargo b --release -p libra
+          else
+              cargo b --release -p libra
           fi
-          $CARGO_BUILD_DEFS cargo b --release -p libra
 
       - name: upload binary build artifact
         uses: actions/upload-artifact@v4
