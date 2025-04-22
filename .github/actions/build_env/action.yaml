@@ -37,6 +37,10 @@ runs:
       shell: bash
       run: rustup component add rustfmt clippy
 
+    - name: See if we are running this
+      shell: bash
+      run: echo "hello there!"
+
     # call own action for libra_cli
     # known issue with needing to hard code the @version
     # https://github.com/orgs/community/discussions/41927
