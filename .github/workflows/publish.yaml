@@ -38,7 +38,7 @@ jobs:
       - name: build libra binary
         # size and performance optimized binary with profile.cli
         run: |
-          if [[ ${{ runner.arch }} == "arm64" ]]; then
+          if [[ ${{ runner.arch }} == "ARM64" ]]; then
               CARGO_BUILD_DEFS='RUSTFLAGS="--cfg tokio_unstable"'
           fi
           $CARGO_BUILD_DEFS cargo b --release -p libra
