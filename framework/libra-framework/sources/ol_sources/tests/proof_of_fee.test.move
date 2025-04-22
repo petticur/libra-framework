@@ -13,7 +13,7 @@ module ol_framework::test_pof {
   use diem_framework::chain_id;
   use std::vector;
 
-  //use diem_std::debug::print;
+
 
   const Alice: address = @0x1000a;
   const Bob: address = @0x1000b;
@@ -113,7 +113,7 @@ module ol_framework::test_pof {
     let (_, pass) = proof_of_fee::audit_qualification(alice);
     assert!(pass, 1003);
 
-    vouch::test_set_buddies(alice, vector::empty());
+    vouch::test_set_received_list(alice, vector::empty());
 
     let val_set = stake::get_current_validators();
     let (frens_in_val_set, _found) = vouch::true_friends_in_list(alice, &val_set);

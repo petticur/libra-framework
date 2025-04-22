@@ -15,6 +15,7 @@ use crate::BYTECODE_VERSION;
 // ===============================================================================================
 // Release Targets
 
+// TODO: this one should be renamed or we should extend diem ReleaseTarget
 /// Represents the available release targets. `Current` is in sync with the current client branch,
 /// which is ensured by tests.
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -75,13 +76,18 @@ impl ReleaseTarget {
     }
 
     /// Loads the release bundle for this particular target.
-    pub fn load_bundle(self) -> anyhow::Result<ReleaseBundle> {
+    pub fn load_bundle(&self) -> anyhow::Result<ReleaseBundle> {
         //////// 0L ////////
-        let this_path = PathBuf::from_str(env!("CARGO_MANIFEST_DIR"))?;
-        let path = this_path.join("releases").join(self.file_name());
+        let path = self.find_bundle_path()?;
         ReleaseBundle::read(path)
     }
 
+    //////// 0L ////////
+    /// In test and debug runs, find the local release path.
+    pub fn find_bundle_path(&self) -> anyhow::Result<PathBuf> {
+        let this_path = PathBuf::from_str(env!("CARGO_MANIFEST_DIR"))?;
+        Ok(this_path.join("releases").join(self.file_name()))
+    }
     /// Loads a bundle from .mrb file. Used for production cases.
     pub fn load_bundle_from_file(path: PathBuf) -> anyhow::Result<ReleaseBundle> {
         //////// 0L ////////

@@ -1,18 +1,26 @@
-name: publish cli
+name: publish binary releases
 on:
   push:
     branches:
+      # REMOVE THIS
+      - "new-releases-ci"
       # make binaries which may be ahead of releases to use in CI jobs
       - "ci-bins*"
+      # nightly type releases
+      - "canary*"
+    # Official numbered releases
     tags: # run this also on release candidates
       - "[0-9]+.[0-9]+.[0-9]*"
 
 jobs:
-  publish:
-    permissions:
-      write-all
+  build:
+    permissions: write-all
     name: publish
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest] # macos-latest is ARM, ubuntu-latest is x86
+        os: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       # NOTE: for debugging CI this allow shell access to github runner. Will print out tmate.io terminal url
       # - name: Setup tmate session
@@ -27,28 +35,42 @@ jobs:
       - name: setup env
         uses: ./.github/actions/build_env
 
-      - name: build libra cli release
+      - name: build libra binary
         # size and performance optimized binary with profile.cli
-        run: cargo b --release -p libra
+        run: |
+          if [[ ${{ runner.arch }} == "arm64" ]]; then
+              CARGO_BUILD_DEFS='RUSTFLAGS="--cfg tokio_unstable"'
+          fi
+          $CARGO_BUILD_DEFS cargo b --release -p libra
 
-      # release bin
-      - name: libra publish
-        if: ${{ !contains(github.ref, 'ci-bins') }}
+      - name: upload binary build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libra-${{ matrix.os }}
+          path: ./target/release/libra
+
+      - name: build framework
+        if: ${{!contains(github.ref, 'ci-bins') }}
+        run: cd framework && ../target/release/libra move framework release
+
+      - name: upload framework build artifact
+        if: ${{!contains(github.ref, 'ci-bins') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{github.ref_name}}.mrb
+          path: ./framework/releases/head.mrb
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: download artifacts
+        uses: actions/download-artifact@v4
+      - name: create github release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/libra
-          tag: ${{ github.ref }}
-          overwrite: true
-          file_glob: true
-
-      # CI bin
-      - name: libra publish
-        if: ${{ contains(github.ref, 'ci-bins') }}
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/libra
-          tag: ci-bins
+          file: "*"
+          tag: ${{github.ref_name}}
           overwrite: true
           file_glob: true

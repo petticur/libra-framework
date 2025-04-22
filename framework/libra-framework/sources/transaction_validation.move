@@ -1,19 +1,17 @@
 module diem_framework::transaction_validation {
     use std::error;
-    // use std::features;
     use std::signer;
     use std::vector;
 
     use diem_framework::account;
-    // use diem_framework::diem_coin::DiemCoin;
-    use ol_framework::libra_coin::{Self, LibraCoin};
     use diem_framework::chain_id;
     use diem_framework::coin;
     use diem_framework::system_addresses;
     use diem_framework::timestamp;
     use diem_framework::transaction_fee;
 
-    // use diem_std::debug::print;
+    use ol_framework::activity;
+    use ol_framework::libra_coin::{Self, LibraCoin};
 
     friend diem_framework::genesis;
 
@@ -75,8 +73,9 @@ module diem_framework::transaction_validation {
         txn_expiration_time: u64,
         chain_id: u8,
     ) {
+        let time = timestamp::now_seconds();
         assert!(
-            timestamp::now_seconds() < txn_expiration_time,
+            time < txn_expiration_time,
             error::invalid_argument(PROLOGUE_ETRANSACTION_EXPIRED),
         );
         assert!(chain_id::get() == chain_id, error::invalid_argument(PROLOGUE_EBAD_CHAIN_ID));
@@ -113,6 +112,7 @@ module diem_framework::transaction_validation {
         );
         let balance = libra_coin::balance(transaction_sender);
         assert!(balance >= max_transaction_fee, error::invalid_argument(PROLOGUE_ECANT_PAY_GAS_DEPOSIT));
+
     }
 
     fun module_prologue(
@@ -204,6 +204,11 @@ module diem_framework::transaction_validation {
             // later redistribution.
             transaction_fee::collect_fee(addr, transaction_fee_amount);
         };
+
+        //////// OL ////////
+        // increments the activity tracker
+        activity::increment(&account, timestamp::now_microseconds());
+
         // Increment sequence number
         account::increment_sequence_number(addr);
     }

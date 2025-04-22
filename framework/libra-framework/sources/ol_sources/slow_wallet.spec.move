@@ -14,9 +14,13 @@ spec ol_framework::slow_wallet {
     // if genesis is initialized properly
     spec on_new_epoch(vm: &signer): (bool, u64) {
         use ol_framework::sacred_cows::{SacredCow, SlowDrip};
+        use diem_framework::chain_status;
+
+        requires chain_status::is_operating();
+
+        aborts_if !exists<SlowWalletList>(@0x1);
 
         aborts_if !system_addresses::signer_is_ol_root(vm);
-
         aborts_if !exists<SacredCow<SlowDrip>>(@0x2);
 
         aborts_if borrow_global<SacredCow<SlowDrip>>(@0x2).value != 35000 * 1000000;

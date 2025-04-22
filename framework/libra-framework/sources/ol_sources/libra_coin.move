@@ -13,7 +13,7 @@ module ol_framework::libra_coin {
     use std::signer;
     use std::vector;
     use std::option::{Self, Option};
-    // use diem_std::debug::print;
+
 
     use diem_framework::coin::{Self, Coin, MintCapability, BurnCapability};
     use diem_framework::system_addresses;
@@ -69,6 +69,7 @@ module ol_framework::libra_coin {
 
         // Diem framework needs mint cap to mint coins to initial validators. This will be revoked once the validators
         // have been initialized.
+
         move_to(diem_framework, MintCapStore { mint_cap });
 
 
@@ -108,13 +109,13 @@ module ol_framework::libra_coin {
         exists<MintCapStore>(signer::address_of(account))
     }
 
-    /// Only called during genesis to destroy the diem framework account's mint capability once all initial validators
-    /// and accounts have been initialized during genesis.
-    public(friend) fun destroy_mint_cap(diem_framework: &signer) acquires MintCapStore {
-        system_addresses::assert_diem_framework(diem_framework);
-        let MintCapStore { mint_cap } = move_from<MintCapStore>(@diem_framework);
-        coin::destroy_mint_cap(mint_cap);
-    }
+    // /// Only called during genesis to destroy the diem framework account's mint capability once all initial validators
+    // /// and accounts have been initialized during genesis.
+    // public(friend) fun destroy_mint_cap(diem_framework: &signer) acquires MintCapStore {
+    //     system_addresses::assert_diem_framework(diem_framework);
+    //     let MintCapStore { mint_cap } = move_from<MintCapStore>(@diem_framework);
+    //     coin::destroy_mint_cap(mint_cap);
+    // }
 
     // at genesis we need to init the final supply
     // done at genesis_migration
@@ -189,7 +190,7 @@ module ol_framework::libra_coin {
     #[view]
     /// get the gas coin supply. Helper which wraps coin::supply and extracts option type
     // NOTE: there is casting between u128 and u64, but 0L has final supply below the u64.
-    public fun supply(): u64 {
+    public fun supply(): u64 acquires FinalMint{
 
       let supply_opt = coin::supply<LibraCoin>();
       if (option::is_some(&supply_opt)) {
@@ -199,7 +200,7 @@ module ol_framework::libra_coin {
         };
         return (value as u64)
       };
-      0
+      get_final_supply()
     }
     #[view]
     /// debugging view
@@ -260,7 +261,7 @@ module ol_framework::libra_coin {
         root: &signer,
         dst_addr: address,
         amount: u64,
-    ) acquires MintCapStore {
+    ) acquires MintCapStore, FinalMint {
         let _s = supply(); // check we didn't overflow supply
 
         let account_addr = signer::address_of(root);
@@ -280,7 +281,7 @@ module ol_framework::libra_coin {
         root: &signer,
         dst_addr: address,
         amount: u64,
-    ) acquires MintCapStore {
+    ) acquires MintCapStore, FinalMint {
       system_addresses::assert_ol(root);
       mint_to_impl(root, dst_addr, amount);
     }
@@ -333,7 +334,7 @@ module ol_framework::libra_coin {
     use diem_framework::aggregator_factory;
 
     #[test_only]
-    public fun initialize_for_test(diem_framework: &signer): (BurnCapability<LibraCoin>, MintCapability<LibraCoin>) {
+    public fun initialize_for_test(diem_framework: &signer): (BurnCapability<LibraCoin>, MintCapability<LibraCoin>) acquires FinalMint {
         aggregator_factory::initialize_aggregator_factory_for_test(diem_framework);
         let (burn_cap, freeze_cap, mint_cap) = coin::initialize_with_parallelizable_supply<LibraCoin>(
             diem_framework,
@@ -342,22 +343,11 @@ module ol_framework::libra_coin {
             8, /* decimals */
             true, /* monitor_supply */
         );
-        move_to(diem_framework, MintCapStore { mint_cap });
+
+        genesis_set_final_supply(diem_framework, 0);
 
         coin::destroy_freeze_cap(freeze_cap);
         (burn_cap, mint_cap)
     }
-    // This is particularly useful if the aggregator_factory is already initialized via another call path.
-    #[test_only]
-    public fun initialize_for_test_without_aggregator_factory(diem_framework: &signer): (BurnCapability<LibraCoin>, MintCapability<LibraCoin>) {
-                let (burn_cap, freeze_cap, mint_cap) = coin::initialize_with_parallelizable_supply<LibraCoin>(
-            diem_framework,
-            string::utf8(b"LibraCoin"),
-            string::utf8(b"LIBRA"),
-            8, /* decimals */
-            true, /* monitor_supply */
-        );
-        coin::destroy_freeze_cap(freeze_cap);
-        (burn_cap, mint_cap)
-    }
+    // COMMIT NOTE: Deduplicate the initialization by lazy initializing aggregator_factory.move
 }

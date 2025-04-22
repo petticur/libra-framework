@@ -1,9 +1,8 @@
 //! Module for handling recovery genesis blob creation
 
-use libra_types::{
-    exports::{AccountAddress, AuthenticationKey},
-    legacy_types::legacy_recovery_v6::{self, AccountRole, LegacyRecoveryV6},
-};
+use libra_backwards_compatibility::legacy_recovery_v6::{self, AccountRole, LegacyRecoveryV6};
+
+use libra_types::exports::{AccountAddress, AuthenticationKey};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -83,7 +82,6 @@ fn parse_json_single() {
             "0000000000000000000000000000000045558bad546e6159020871f7e5d094d7"
         );
     }
-    dbg!(&r.len());
 }
 
 #[test]

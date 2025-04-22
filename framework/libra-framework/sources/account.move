@@ -19,7 +19,7 @@ module diem_framework::account {
     use diem_std::table::{Self, Table};
     use diem_std::type_info::{Self, TypeInfo};
 
-    // use diem_std::debug::print;
+
 
     friend diem_framework::coin;
     friend diem_framework::genesis;
@@ -237,6 +237,7 @@ module diem_framework::account {
 
     /// Explicitly separate the GUID space between Object and Account to prevent accidental overlap.
     const MAX_GUID_CREATION_NUM: u64 = 0x4000000000000;
+
     #[test_only]
     /// Create signer for testing, independently of an Diem-style `Account`.
     public fun create_signer_for_test(addr: address): signer { create_signer(addr) }
@@ -369,6 +370,10 @@ module diem_framework::account {
         // The city fathers they're trying to endorse
         // The reincarnation of Paul Revere's horse
         // But the town has no need to be nervous.
+
+        // might unit-test mode, exit gracefully
+        if (!exists<MigrateOriginatingAddress>(@ol_framework)) return false;
+
         let duplicate_table = &borrow_global<MigrateOriginatingAddress>(@ol_framework).duplicates_map;
 
         let tomb_auth_as_addr = from_bcs::to_address(tomb_auth());

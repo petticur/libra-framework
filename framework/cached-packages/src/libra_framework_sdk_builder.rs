@@ -156,6 +156,12 @@ pub enum EntryFunctionCall {
         amount: u64,
     },
 
+    /// Disable the community wallet if the loan is overdue, callable
+    /// by any authorized user account
+    CommunityWalletAdvanceMaybeDeauthorize {
+        dv_account: AccountAddress,
+    },
+
     /// TODO: Allow to propose change only on the signature threshold
     /// Add or remove a signer to/from the multisig, and check if they may be related in the ancestry tree
     CommunityWalletInitChangeSignerCommunityMultisig {
@@ -235,33 +241,49 @@ pub enum EntryFunctionCall {
         should_pass: bool,
     },
 
+    /// A donor can propose the liquidation of a Donor Voice account
     DonorVoiceTxsProposeLiquidateTx {
         multisig_address: AccountAddress,
     },
 
+    /// A signer of the multisig can propose a payment
     DonorVoiceTxsProposePaymentTx {
         multisig_address: AccountAddress,
         payee: AccountAddress,
         value: u64,
         description: Vec<u8>,
+        advance: bool,
     },
 
+    /// A donor of the program can propose a veto
     DonorVoiceTxsProposeVetoTx {
         multisig_address: AccountAddress,
         id: u64,
     },
 
+    /// After proposed, subsequent voters call this to vote liquidation
     DonorVoiceTxsVoteLiquidationTx {
         multisig_address: AccountAddress,
     },
 
-    /// Entry functiont to vote the veto.
+    /// After proposed, subsequent donors can vote to reauth an account
+    DonorVoiceTxsVoteReauthTx {
+        multisig_address: AccountAddress,
+    },
+
+    /// After proposed, subsequent veto voters call this to vote on a tx veto
     DonorVoiceTxsVoteVetoTx {
         multisig_address: AccountAddress,
         id: u64,
     },
 
+    /// testnet helper to allow testnet root account to set flip the boundary bit
+    /// used for testing cli tools for polling and triggering
+    EpochBoundarySmokeEnableTrigger {},
+
     EpochBoundarySmokeTriggerEpoch {},
+
+    FiloMigrationMaybeMigrate {},
 
     /// Only a Voucher of the validator can flip the unjail bit.
     /// This is a way to make sure the validator is ready to rejoin.
@@ -445,7 +467,11 @@ pub enum EntryFunctionCall {
         to: AccountAddress,
     },
 
-    /// Helper for smoke tests to create acounts.
+    /// Helper for smoke tests to create accounts.
+    /// this is in production code because:
+    /// it is used for genesis transactions regarding mainnet
+    /// e.g. test_correct_supply_arithmetic_single
+    /// plus, a  #[test_only] pragma will not work for smoke tests
     /// Belt and suspenders
     OlAccountCreateAccount {
         auth_key: AccountAddress,
@@ -471,6 +497,12 @@ pub enum EntryFunctionCall {
     /// update the bid for the sender
     ProofOfFeePofUpdateBid {
         bid: u64,
+        epoch_expiry: u64,
+    },
+
+    /// update the bid using estimated net reward instead of the internal bid variables
+    ProofOfFeePofUpdateBidNetReward {
+        net_reward: u64,
         epoch_expiry: u64,
     },
 
@@ -530,20 +562,13 @@ pub enum EntryFunctionCall {
         major: u64,
     },
 
-    /// you may want to add people who are related to you
-    /// there are no known use cases for this at the moment.
-    VouchInsistVouchFor {
+    VouchTxsCleanExpired {},
+
+    VouchTxsRevoke {
         friend_account: AccountAddress,
     },
 
-    VouchRevoke {
-        friend_account: AccountAddress,
-    },
-
-    /// will only succesfully vouch if the two are not related by ancestry
-    /// prevents spending a vouch that would not be counted.
-    /// to add a vouch and ignore this check use insist_vouch
-    VouchVouchFor {
+    VouchTxsVouchFor {
         friend_account: AccountAddress,
     },
 }
@@ -619,6 +644,9 @@ impl EntryFunctionCall {
                 to,
                 amount,
             } => coin_transfer(coin_type, to, amount),
+            CommunityWalletAdvanceMaybeDeauthorize { dv_account } => {
+                community_wallet_advance_maybe_deauthorize(dv_account)
+            }
             CommunityWalletInitChangeSignerCommunityMultisig {
                 multisig_address,
                 new_signer,
@@ -689,7 +717,14 @@ impl EntryFunctionCall {
                 payee,
                 value,
                 description,
-            } => donor_voice_txs_propose_payment_tx(multisig_address, payee, value, description),
+                advance,
+            } => donor_voice_txs_propose_payment_tx(
+                multisig_address,
+                payee,
+                value,
+                description,
+                advance,
+            ),
             DonorVoiceTxsProposeVetoTx {
                 multisig_address,
                 id,
@@ -697,11 +732,16 @@ impl EntryFunctionCall {
             DonorVoiceTxsVoteLiquidationTx { multisig_address } => {
                 donor_voice_txs_vote_liquidation_tx(multisig_address)
             }
+            DonorVoiceTxsVoteReauthTx { multisig_address } => {
+                donor_voice_txs_vote_reauth_tx(multisig_address)
+            }
             DonorVoiceTxsVoteVetoTx {
                 multisig_address,
                 id,
             } => donor_voice_txs_vote_veto_tx(multisig_address, id),
+            EpochBoundarySmokeEnableTrigger {} => epoch_boundary_smoke_enable_trigger(),
             EpochBoundarySmokeTriggerEpoch {} => epoch_boundary_smoke_trigger_epoch(),
+            FiloMigrationMaybeMigrate {} => filo_migration_maybe_migrate(),
             JailUnjailByVoucher { addr } => jail_unjail_by_voucher(addr),
             LibraCoinClaimMintCapability {} => libra_coin_claim_mint_capability(),
             LibraCoinDelegateMintCapability { to } => libra_coin_delegate_mint_capability(to),
@@ -808,6 +848,10 @@ impl EntryFunctionCall {
             ProofOfFeePofUpdateBid { bid, epoch_expiry } => {
                 proof_of_fee_pof_update_bid(bid, epoch_expiry)
             }
+            ProofOfFeePofUpdateBidNetReward {
+                net_reward,
+                epoch_expiry,
+            } => proof_of_fee_pof_update_bid_net_reward(net_reward, epoch_expiry),
             SafeInitPaymentMultisig { authorities } => safe_init_payment_multisig(authorities),
             SlowWalletSmokeTestVmUnlock {
                 user_addr,
@@ -856,9 +900,9 @@ impl EntryFunctionCall {
                 fullnode_addresses,
             ),
             VersionSetVersion { major } => version_set_version(major),
-            VouchInsistVouchFor { friend_account } => vouch_insist_vouch_for(friend_account),
-            VouchRevoke { friend_account } => vouch_revoke(friend_account),
-            VouchVouchFor { friend_account } => vouch_vouch_for(friend_account),
+            VouchTxsCleanExpired {} => vouch_txs_clean_expired(),
+            VouchTxsRevoke { friend_account } => vouch_txs_revoke(friend_account),
+            VouchTxsVouchFor { friend_account } => vouch_txs_vouch_for(friend_account),
         }
     }
 
@@ -1162,6 +1206,25 @@ pub fn coin_transfer(coin_type: TypeTag, to: AccountAddress, amount: u64) -> Tra
     ))
 }
 
+/// Disable the community wallet if the loan is overdue, callable
+/// by any authorized user account
+pub fn community_wallet_advance_maybe_deauthorize(
+    dv_account: AccountAddress,
+) -> TransactionPayload {
+    TransactionPayload::EntryFunction(EntryFunction::new(
+        ModuleId::new(
+            AccountAddress::new([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 1,
+            ]),
+            ident_str!("community_wallet_advance").to_owned(),
+        ),
+        ident_str!("maybe_deauthorize").to_owned(),
+        vec![],
+        vec![bcs::to_bytes(&dv_account).unwrap()],
+    ))
+}
+
 /// TODO: Allow to propose change only on the signature threshold
 /// Add or remove a signer to/from the multisig, and check if they may be related in the ancestry tree
 pub fn community_wallet_init_change_signer_community_multisig(
@@ -1413,6 +1476,7 @@ pub fn diem_governance_vote(proposal_id: u64, should_pass: bool) -> TransactionP
     ))
 }
 
+/// A donor can propose the liquidation of a Donor Voice account
 pub fn donor_voice_txs_propose_liquidate_tx(
     multisig_address: AccountAddress,
 ) -> TransactionPayload {
@@ -1430,11 +1494,13 @@ pub fn donor_voice_txs_propose_liquidate_tx(
     ))
 }
 
+/// A signer of the multisig can propose a payment
 pub fn donor_voice_txs_propose_payment_tx(
     multisig_address: AccountAddress,
     payee: AccountAddress,
     value: u64,
     description: Vec<u8>,
+    advance: bool,
 ) -> TransactionPayload {
     TransactionPayload::EntryFunction(EntryFunction::new(
         ModuleId::new(
@@ -1451,10 +1517,12 @@ pub fn donor_voice_txs_propose_payment_tx(
             bcs::to_bytes(&payee).unwrap(),
             bcs::to_bytes(&value).unwrap(),
             bcs::to_bytes(&description).unwrap(),
+            bcs::to_bytes(&advance).unwrap(),
         ],
     ))
 }
 
+/// A donor of the program can propose a veto
 pub fn donor_voice_txs_propose_veto_tx(
     multisig_address: AccountAddress,
     id: u64,
@@ -1476,6 +1544,7 @@ pub fn donor_voice_txs_propose_veto_tx(
     ))
 }
 
+/// After proposed, subsequent voters call this to vote liquidation
 pub fn donor_voice_txs_vote_liquidation_tx(multisig_address: AccountAddress) -> TransactionPayload {
     TransactionPayload::EntryFunction(EntryFunction::new(
         ModuleId::new(
@@ -1491,7 +1560,23 @@ pub fn donor_voice_txs_vote_liquidation_tx(multisig_address: AccountAddress) -> 
     ))
 }
 
-/// Entry functiont to vote the veto.
+/// After proposed, subsequent donors can vote to reauth an account
+pub fn donor_voice_txs_vote_reauth_tx(multisig_address: AccountAddress) -> TransactionPayload {
+    TransactionPayload::EntryFunction(EntryFunction::new(
+        ModuleId::new(
+            AccountAddress::new([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 1,
+            ]),
+            ident_str!("donor_voice_txs").to_owned(),
+        ),
+        ident_str!("vote_reauth_tx").to_owned(),
+        vec![],
+        vec![bcs::to_bytes(&multisig_address).unwrap()],
+    ))
+}
+
+/// After proposed, subsequent veto voters call this to vote on a tx veto
 pub fn donor_voice_txs_vote_veto_tx(
     multisig_address: AccountAddress,
     id: u64,
@@ -1513,6 +1598,23 @@ pub fn donor_voice_txs_vote_veto_tx(
     ))
 }
 
+/// testnet helper to allow testnet root account to set flip the boundary bit
+/// used for testing cli tools for polling and triggering
+pub fn epoch_boundary_smoke_enable_trigger() -> TransactionPayload {
+    TransactionPayload::EntryFunction(EntryFunction::new(
+        ModuleId::new(
+            AccountAddress::new([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 1,
+            ]),
+            ident_str!("epoch_boundary").to_owned(),
+        ),
+        ident_str!("smoke_enable_trigger").to_owned(),
+        vec![],
+        vec![],
+    ))
+}
+
 pub fn epoch_boundary_smoke_trigger_epoch() -> TransactionPayload {
     TransactionPayload::EntryFunction(EntryFunction::new(
         ModuleId::new(
@@ -1523,6 +1625,21 @@ pub fn epoch_boundary_smoke_trigger_epoch() -> TransactionPayload {
             ident_str!("epoch_boundary").to_owned(),
         ),
         ident_str!("smoke_trigger_epoch").to_owned(),
+        vec![],
+        vec![],
+    ))
+}
+
+pub fn filo_migration_maybe_migrate() -> TransactionPayload {
+    TransactionPayload::EntryFunction(EntryFunction::new(
+        ModuleId::new(
+            AccountAddress::new([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 1,
+            ]),
+            ident_str!("filo_migration").to_owned(),
+        ),
+        ident_str!("maybe_migrate").to_owned(),
         vec![],
         vec![],
     ))
@@ -2047,7 +2164,11 @@ pub fn object_transfer_call(object: AccountAddress, to: AccountAddress) -> Trans
     ))
 }
 
-/// Helper for smoke tests to create acounts.
+/// Helper for smoke tests to create accounts.
+/// this is in production code because:
+/// it is used for genesis transactions regarding mainnet
+/// e.g. test_correct_supply_arithmetic_single
+/// plus, a  #[test_only] pragma will not work for smoke tests
 /// Belt and suspenders
 pub fn ol_account_create_account(auth_key: AccountAddress) -> TransactionPayload {
     TransactionPayload::EntryFunction(EntryFunction::new(
@@ -2142,6 +2263,28 @@ pub fn proof_of_fee_pof_update_bid(bid: u64, epoch_expiry: u64) -> TransactionPa
         vec![],
         vec![
             bcs::to_bytes(&bid).unwrap(),
+            bcs::to_bytes(&epoch_expiry).unwrap(),
+        ],
+    ))
+}
+
+/// update the bid using estimated net reward instead of the internal bid variables
+pub fn proof_of_fee_pof_update_bid_net_reward(
+    net_reward: u64,
+    epoch_expiry: u64,
+) -> TransactionPayload {
+    TransactionPayload::EntryFunction(EntryFunction::new(
+        ModuleId::new(
+            AccountAddress::new([
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 1,
+            ]),
+            ident_str!("proof_of_fee").to_owned(),
+        ),
+        ident_str!("pof_update_bid_net_reward").to_owned(),
+        vec![],
+        vec![
+            bcs::to_bytes(&net_reward).unwrap(),
             bcs::to_bytes(&epoch_expiry).unwrap(),
         ],
     ))
@@ -2325,31 +2468,29 @@ pub fn version_set_version(major: u64) -> TransactionPayload {
     ))
 }
 
-/// you may want to add people who are related to you
-/// there are no known use cases for this at the moment.
-pub fn vouch_insist_vouch_for(friend_account: AccountAddress) -> TransactionPayload {
+pub fn vouch_txs_clean_expired() -> TransactionPayload {
     TransactionPayload::EntryFunction(EntryFunction::new(
         ModuleId::new(
             AccountAddress::new([
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 1,
             ]),
-            ident_str!("vouch").to_owned(),
+            ident_str!("vouch_txs").to_owned(),
         ),
-        ident_str!("insist_vouch_for").to_owned(),
+        ident_str!("clean_expired").to_owned(),
         vec![],
-        vec![bcs::to_bytes(&friend_account).unwrap()],
+        vec![],
     ))
 }
 
-pub fn vouch_revoke(friend_account: AccountAddress) -> TransactionPayload {
+pub fn vouch_txs_revoke(friend_account: AccountAddress) -> TransactionPayload {
     TransactionPayload::EntryFunction(EntryFunction::new(
         ModuleId::new(
             AccountAddress::new([
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 1,
             ]),
-            ident_str!("vouch").to_owned(),
+            ident_str!("vouch_txs").to_owned(),
         ),
         ident_str!("revoke").to_owned(),
         vec![],
@@ -2357,17 +2498,14 @@ pub fn vouch_revoke(friend_account: AccountAddress) -> TransactionPayload {
     ))
 }
 
-/// will only succesfully vouch if the two are not related by ancestry
-/// prevents spending a vouch that would not be counted.
-/// to add a vouch and ignore this check use insist_vouch
-pub fn vouch_vouch_for(friend_account: AccountAddress) -> TransactionPayload {
+pub fn vouch_txs_vouch_for(friend_account: AccountAddress) -> TransactionPayload {
     TransactionPayload::EntryFunction(EntryFunction::new(
         ModuleId::new(
             AccountAddress::new([
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 1,
             ]),
-            ident_str!("vouch").to_owned(),
+            ident_str!("vouch_txs").to_owned(),
         ),
         ident_str!("vouch_for").to_owned(),
         vec![],
@@ -2511,6 +2649,18 @@ mod decoder {
                 coin_type: script.ty_args().first()?.clone(),
                 to: bcs::from_bytes(script.args().first()?).ok()?,
                 amount: bcs::from_bytes(script.args().get(1)?).ok()?,
+            })
+        } else {
+            None
+        }
+    }
+
+    pub fn community_wallet_advance_maybe_deauthorize(
+        payload: &TransactionPayload,
+    ) -> Option<EntryFunctionCall> {
+        if let TransactionPayload::EntryFunction(script) = payload {
+            Some(EntryFunctionCall::CommunityWalletAdvanceMaybeDeauthorize {
+                dv_account: bcs::from_bytes(script.args().first()?).ok()?,
             })
         } else {
             None
@@ -2692,6 +2842,7 @@ mod decoder {
                 payee: bcs::from_bytes(script.args().get(1)?).ok()?,
                 value: bcs::from_bytes(script.args().get(2)?).ok()?,
                 description: bcs::from_bytes(script.args().get(3)?).ok()?,
+                advance: bcs::from_bytes(script.args().get(4)?).ok()?,
             })
         } else {
             None
@@ -2723,6 +2874,18 @@ mod decoder {
         }
     }
 
+    pub fn donor_voice_txs_vote_reauth_tx(
+        payload: &TransactionPayload,
+    ) -> Option<EntryFunctionCall> {
+        if let TransactionPayload::EntryFunction(script) = payload {
+            Some(EntryFunctionCall::DonorVoiceTxsVoteReauthTx {
+                multisig_address: bcs::from_bytes(script.args().first()?).ok()?,
+            })
+        } else {
+            None
+        }
+    }
+
     pub fn donor_voice_txs_vote_veto_tx(payload: &TransactionPayload) -> Option<EntryFunctionCall> {
         if let TransactionPayload::EntryFunction(script) = payload {
             Some(EntryFunctionCall::DonorVoiceTxsVoteVetoTx {
@@ -2734,11 +2897,29 @@ mod decoder {
         }
     }
 
+    pub fn epoch_boundary_smoke_enable_trigger(
+        payload: &TransactionPayload,
+    ) -> Option<EntryFunctionCall> {
+        if let TransactionPayload::EntryFunction(_script) = payload {
+            Some(EntryFunctionCall::EpochBoundarySmokeEnableTrigger {})
+        } else {
+            None
+        }
+    }
+
     pub fn epoch_boundary_smoke_trigger_epoch(
         payload: &TransactionPayload,
     ) -> Option<EntryFunctionCall> {
         if let TransactionPayload::EntryFunction(_script) = payload {
             Some(EntryFunctionCall::EpochBoundarySmokeTriggerEpoch {})
+        } else {
+            None
+        }
+    }
+
+    pub fn filo_migration_maybe_migrate(payload: &TransactionPayload) -> Option<EntryFunctionCall> {
+        if let TransactionPayload::EntryFunction(_script) = payload {
+            Some(EntryFunctionCall::FiloMigrationMaybeMigrate {})
         } else {
             None
         }
@@ -3105,6 +3286,19 @@ mod decoder {
         }
     }
 
+    pub fn proof_of_fee_pof_update_bid_net_reward(
+        payload: &TransactionPayload,
+    ) -> Option<EntryFunctionCall> {
+        if let TransactionPayload::EntryFunction(script) = payload {
+            Some(EntryFunctionCall::ProofOfFeePofUpdateBidNetReward {
+                net_reward: bcs::from_bytes(script.args().first()?).ok()?,
+                epoch_expiry: bcs::from_bytes(script.args().get(1)?).ok()?,
+            })
+        } else {
+            None
+        }
+    }
+
     pub fn safe_init_payment_multisig(payload: &TransactionPayload) -> Option<EntryFunctionCall> {
         if let TransactionPayload::EntryFunction(script) = payload {
             Some(EntryFunctionCall::SafeInitPaymentMultisig {
@@ -3201,9 +3395,17 @@ mod decoder {
         }
     }
 
-    pub fn vouch_insist_vouch_for(payload: &TransactionPayload) -> Option<EntryFunctionCall> {
+    pub fn vouch_txs_clean_expired(payload: &TransactionPayload) -> Option<EntryFunctionCall> {
+        if let TransactionPayload::EntryFunction(_script) = payload {
+            Some(EntryFunctionCall::VouchTxsCleanExpired {})
+        } else {
+            None
+        }
+    }
+
+    pub fn vouch_txs_revoke(payload: &TransactionPayload) -> Option<EntryFunctionCall> {
         if let TransactionPayload::EntryFunction(script) = payload {
-            Some(EntryFunctionCall::VouchInsistVouchFor {
+            Some(EntryFunctionCall::VouchTxsRevoke {
                 friend_account: bcs::from_bytes(script.args().first()?).ok()?,
             })
         } else {
@@ -3211,19 +3413,9 @@ mod decoder {
         }
     }
 
-    pub fn vouch_revoke(payload: &TransactionPayload) -> Option<EntryFunctionCall> {
+    pub fn vouch_txs_vouch_for(payload: &TransactionPayload) -> Option<EntryFunctionCall> {
         if let TransactionPayload::EntryFunction(script) = payload {
-            Some(EntryFunctionCall::VouchRevoke {
-                friend_account: bcs::from_bytes(script.args().first()?).ok()?,
-            })
-        } else {
-            None
-        }
-    }
-
-    pub fn vouch_vouch_for(payload: &TransactionPayload) -> Option<EntryFunctionCall> {
-        if let TransactionPayload::EntryFunction(script) = payload {
-            Some(EntryFunctionCall::VouchVouchFor {
+            Some(EntryFunctionCall::VouchTxsVouchFor {
                 friend_account: bcs::from_bytes(script.args().first()?).ok()?,
             })
         } else {
@@ -3287,6 +3479,10 @@ static SCRIPT_FUNCTION_DECODER_MAP: once_cell::sync::Lazy<EntryFunctionDecoderMa
         map.insert(
             "coin_transfer".to_string(),
             Box::new(decoder::coin_transfer),
+        );
+        map.insert(
+            "community_wallet_advance_maybe_deauthorize".to_string(),
+            Box::new(decoder::community_wallet_advance_maybe_deauthorize),
         );
         map.insert(
             "community_wallet_init_change_signer_community_multisig".to_string(),
@@ -3353,12 +3549,24 @@ static SCRIPT_FUNCTION_DECODER_MAP: once_cell::sync::Lazy<EntryFunctionDecoderMa
             Box::new(decoder::donor_voice_txs_vote_liquidation_tx),
         );
         map.insert(
+            "donor_voice_txs_vote_reauth_tx".to_string(),
+            Box::new(decoder::donor_voice_txs_vote_reauth_tx),
+        );
+        map.insert(
             "donor_voice_txs_vote_veto_tx".to_string(),
             Box::new(decoder::donor_voice_txs_vote_veto_tx),
         );
         map.insert(
+            "epoch_boundary_smoke_enable_trigger".to_string(),
+            Box::new(decoder::epoch_boundary_smoke_enable_trigger),
+        );
+        map.insert(
             "epoch_boundary_smoke_trigger_epoch".to_string(),
             Box::new(decoder::epoch_boundary_smoke_trigger_epoch),
+        );
+        map.insert(
+            "filo_migration_maybe_migrate".to_string(),
+            Box::new(decoder::filo_migration_maybe_migrate),
         );
         map.insert(
             "jail_unjail_by_voucher".to_string(),
@@ -3481,6 +3689,10 @@ static SCRIPT_FUNCTION_DECODER_MAP: once_cell::sync::Lazy<EntryFunctionDecoderMa
             Box::new(decoder::proof_of_fee_pof_update_bid),
         );
         map.insert(
+            "proof_of_fee_pof_update_bid_net_reward".to_string(),
+            Box::new(decoder::proof_of_fee_pof_update_bid_net_reward),
+        );
+        map.insert(
             "safe_init_payment_multisig".to_string(),
             Box::new(decoder::safe_init_payment_multisig),
         );
@@ -3513,13 +3725,16 @@ static SCRIPT_FUNCTION_DECODER_MAP: once_cell::sync::Lazy<EntryFunctionDecoderMa
             Box::new(decoder::version_set_version),
         );
         map.insert(
-            "vouch_insist_vouch_for".to_string(),
-            Box::new(decoder::vouch_insist_vouch_for),
+            "vouch_txs_clean_expired".to_string(),
+            Box::new(decoder::vouch_txs_clean_expired),
         );
-        map.insert("vouch_revoke".to_string(), Box::new(decoder::vouch_revoke));
         map.insert(
-            "vouch_vouch_for".to_string(),
-            Box::new(decoder::vouch_vouch_for),
+            "vouch_txs_revoke".to_string(),
+            Box::new(decoder::vouch_txs_revoke),
+        );
+        map.insert(
+            "vouch_txs_vouch_for".to_string(),
+            Box::new(decoder::vouch_txs_vouch_for),
         );
         map
     });

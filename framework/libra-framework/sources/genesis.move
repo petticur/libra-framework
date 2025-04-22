@@ -1,5 +1,5 @@
 module diem_framework::genesis {
-    // use diem_std::debug::print;
+
 
     use std::error;
     use std::vector;
@@ -44,6 +44,7 @@ module diem_framework::genesis {
     use ol_framework::testnet;
     use ol_framework::epoch_boundary;
     use ol_framework::sacred_cows;
+    use ol_framework::root_of_trust;
 
     //////// end 0L ////////
 
@@ -136,6 +137,8 @@ module diem_framework::genesis {
 
         chain_id::initialize(&diem_framework_account, chain_id);
         reconfiguration::initialize(&diem_framework_account);
+
+        // TODO: the epoch interval should be set on Move global.move, not externally.
         block::initialize(&diem_framework_account, epoch_interval_microsecs);
         state_storage::initialize(&diem_framework_account);
         randomness::initialize(&diem_framework_account);
@@ -271,6 +274,8 @@ module diem_framework::genesis {
         vector::for_each(val_addr_list, |one_val| {
           vouch::vm_migrate(diem_framework, one_val, val_addr_list);
         });
+
+        root_of_trust::genesis_initialize(diem_framework, val_addr_list);
 
         musical_chairs::initialize(diem_framework, num_validators);
         ////////

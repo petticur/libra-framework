@@ -1,3 +1,4 @@
+
 spec ol_framework::ol_account {
     spec module {
         pragma verify = true;
@@ -7,19 +8,32 @@ spec ol_framework::ol_account {
 
     }
 
-    // /// Check if the bytes of the auth_key is 32.
-    // /// The Account does not exist under the auth_key before creating the account.
-    // /// Limit the address of auth_key is not @vm_reserved / @diem_framework / @diem_toke.
-    // spec create_account(auth_key: address) {
-    //     include CreateAccountAbortsIf;
-    //     ensures exists<account::Account>(auth_key);
-    //     ensures exists<coin::CoinStore<LibraCoin>>(auth_key);
-    // }
     spec schema CreateAccountAbortsIf {
         auth_key: address;
         aborts_if exists<account::Account>(auth_key);
         aborts_if length_judgment(auth_key);
         aborts_if auth_key == @vm_reserved || auth_key == @diem_framework || auth_key == @diem_token;
+    }
+
+    spec create_account(root: &signer, auth_key: address) {
+        pragma verify = true;
+        pragma aborts_if_is_strict;
+
+        /// Only testnet or smoke test environments
+        aborts_if !testnet::is_not_mainnet();
+        aborts_if !system_addresses::is_diem_framework_address(signer::address_of(root));
+
+        // TODO: this is an impure function need to find other proxy
+        // for tombstone
+        // Cannot create account if it's a tombstone
+        // aborts_if account::is_tombstone(auth_key) with error::already_exists(ETOMBSTONE);
+
+        /// Ensure core structs are properly initialized
+        ensures exists<BurnTracker>(auth_key);
+        ensures exists<receipts::UserReceipts>(auth_key);
+        ensures coin::is_account_registered<LibraCoin>(auth_key);
+        ensures exists<ancestry::Ancestry>(auth_key);
+        ensures exists<activity::Activity>(auth_key);
     }
 
     spec fun length_judgment(auth_key: address): bool {
@@ -41,10 +55,18 @@ spec ol_framework::ol_account {
 
         aborts_if balance < amount;
 
+        // TODO: don't know how to get around impure function check
+        // of reauthorization::is_v8_authorized(account_addr);
+        // let limit = slow_wallet::unlocked_amount(account_addr);
+        // aborts_if limit < amount;
+
+
         // in the case of slow wallets
         let slow_store = global<slow_wallet::SlowWallet>(account_addr);
         aborts_if exists<slow_wallet::SlowWallet>(account_addr) &&
         slow_store.unlocked < amount;
+
+        aborts_if !activity::has_ever_been_touched(account_addr);
 
         ensures result == Coin<LibraCoin>{value: amount};
     }
@@ -53,6 +75,7 @@ spec ol_framework::ol_account {
         sender: &signer;
         let account_addr = signer::address_of(sender);
         aborts_if !coin::is_account_registered<LibraCoin>(account_addr);
+        aborts_if !exists<BurnTracker>(account_addr);
     }
 
     spec assert_account_exists(addr: address) {

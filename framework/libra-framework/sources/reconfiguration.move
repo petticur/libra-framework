@@ -2,7 +2,6 @@
 /// to synchronize configuration changes for the validators.
 module diem_framework::reconfiguration {
     use std::error;
-    // use std::features;
     use std::signer;
 
     use diem_framework::account;
@@ -14,7 +13,7 @@ module diem_framework::reconfiguration {
     use diem_framework::storage_gas;
     use ol_framework::epoch_helper;
 
-    // use diem_std::debug::print;
+
 
     friend diem_framework::diem_governance;
     friend diem_framework::epoch_boundary;
@@ -226,6 +225,8 @@ module diem_framework::reconfiguration {
 
     #[test_only]
     public fun reconfigure_for_test() acquires Configuration {
+        // voodoo, otherwise nothing may happen
+        timestamp::fast_forward_seconds(1);
         reconfigure();
     }
 

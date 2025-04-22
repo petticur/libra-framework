@@ -7,11 +7,9 @@ use diem_types::account_config::CORE_CODE_ADDRESS;
 use diem_vm::move_vm_ext::SessionExt;
 use diem_vm_genesis::exec_function;
 use indicatif::ProgressIterator;
-use libra_types::{
-    exports::AccountAddress,
-    legacy_types::legacy_recovery_v6::{AccountRole, LegacyRecoveryV6},
-    ol_progress::OLProgress,
-};
+use libra_backwards_compatibility::legacy_recovery_v6::{AccountRole, LegacyRecoveryV6};
+use libra_types::{exports::AccountAddress, ol_progress::OLProgress};
+
 use move_core_types::value::{serialize_values, MoveValue};
 
 /// Migrates all users' data during genesis including accounts, wallets, ancestry, and receipts.
@@ -176,7 +174,7 @@ pub fn genesis_migrate_slow_wallet(
         exec_function(
             session,
             "slow_wallet",
-            "fork_migrate_slow_wallet",
+            "set_slow_wallet_state",
             vec![],
             serialized_values,
         );

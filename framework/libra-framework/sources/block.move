@@ -4,8 +4,6 @@ module diem_framework::block {
     use std::error;
     use std::option;
     use std::vector;
-    // TODO: restore this
-    // use std::features;
     use std::string;
     use diem_framework::account;
     use diem_framework::event::{Self, EventHandle};
@@ -16,9 +14,9 @@ module diem_framework::block {
     use diem_framework::system_addresses;
     use diem_framework::timestamp;
     use diem_std::debug::print;
-    use ol_framework::testnet;
 
-    //////// 0L ////////
+    use ol_framework::testnet;
+    use ol_framework::globals;
     use ol_framework::epoch_boundary;
 
     friend diem_framework::genesis;
@@ -78,13 +76,19 @@ module diem_framework::block {
         );
     }
 
+    /// useful for twin testnet
+    fun set_interval_with_global(diem_framework: &signer) acquires BlockResource {
+      system_addresses::assert_diem_framework(diem_framework);
+      update_epoch_interval_microsecs(diem_framework, globals::get_epoch_microsecs());
+    }
+
     /// Update the epoch interval.
     /// Can only be called as part of the Diem governance proposal process established by the DiemGovernance module.
     public(friend) fun update_epoch_interval_microsecs(
-        _diem_framework: &signer,
+        diem_framework: &signer,
         new_epoch_interval: u64,
     ) acquires BlockResource {
-        //system_addresses::assert_vm(diem_framework); //TODO: remove after testing fork
+        system_addresses::assert_diem_framework(diem_framework); //TODO: remove after testing fork
         assert!(new_epoch_interval > 0, error::invalid_argument(EZERO_EPOCH_INTERVAL));
 
         let block_resource = borrow_global_mut<BlockResource>(@diem_framework);
@@ -144,15 +148,6 @@ module diem_framework::block {
         };
         emit_new_block_event(&vm, &mut block_metadata_ref.new_block_events, new_block_event);
 
-        // if (features::collect_and_distribute_gas_fees()) {
-        //     // Assign the fees collected from the previous block to the previous block proposer.
-        //     // If for any reason the fees cannot be assigned, this function burns the collected coins.
-        //     transaction_fee::process_collected_fees();
-        //     // Set the proposer of this block as the receiver of the fees, so that the fees for this
-        //     // block are assigned to the right account.
-        //     transaction_fee::register_proposer_for_fee_collection(proposer);
-        // };
-
         // Performance scores have to be updated before the epoch transition as the transaction that triggers the
         // transition is the last block in the previous epoch.
         stake::update_performance_statistics(proposer_index, failed_proposer_indices);
@@ -162,7 +157,7 @@ module diem_framework::block {
         let seed = bcs::to_bytes(&hash);
         randomness::on_new_block(&vm, epoch, round, option::some(seed));
 
-        // seperate logic for epoch advancment to allow for testing
+        // separate logic for epoch advancement to allow for testing
         maybe_advance_epoch(&vm, timestamp, block_metadata_ref, round);
 
     }
@@ -244,8 +239,6 @@ module diem_framework::block {
             };
 
             if (timestamp - reconfiguration::last_reconfiguration_time() >= block_metadata_ref.epoch_interval) {
-                // if (!features::epoch_trigger_enabled() ||
-                // testnet::is_testnet()) {
                 if (testnet::is_testnet()) {
                     epoch_boundary::epoch_boundary(
                         vm,
@@ -284,8 +277,7 @@ module diem_framework::block {
     }
 
     #[test(diem_framework = @diem_framework, account = @0x123)]
-    //#[expected_failure(abort_code = 0x50003, location = diem_framework::system_addresses)] //TODO: remove after testing fork
-    #[ignore] //TODO: remove after testing fork
+    #[expected_failure(abort_code = 327683, location = diem_framework::system_addresses)]
     public entry fun test_update_epoch_interval_unauthorized_should_fail(
         diem_framework: signer,
         account: signer,

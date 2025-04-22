@@ -28,16 +28,19 @@ use diem_vm_genesis::{
     initialize_on_chain_governance, publish_framework, set_genesis_end, validate_genesis_config,
     verify_genesis_write_set, GenesisConfiguration, Validator, GENESIS_KEYPAIR,
 };
-use libra_types::{legacy_types::legacy_recovery_v6::LegacyRecoveryV6, ol_progress::OLProgress};
+use libra_backwards_compatibility::legacy_recovery_v6::LegacyRecoveryV6;
+use libra_types::ol_progress::OLProgress;
 
 /// set the genesis parameters
 /// NOTE: many of the parameters are ignored in libra_framework
 /// but are kept for api compatibility.
 pub fn libra_genesis_default(chain: NamedChain) -> GenesisConfiguration {
+    // Note: check this against the move definitions in globals.move
+    // TODO: make this config internal to Move, and not set at genesis
     let epoch_duration_secs = match chain {
         NamedChain::MAINNET => 24 * 60 * 60, // one day
         NamedChain::TESTING => 2 * 60,       // for CI suite: two mins
-        _ => 15 * 60, // for all testnets, not using mainnet settings, 15 mins
+        _ => 5 * 60, // for all testnets, not using mainnet settings, 15 mins
     };
     GenesisConfiguration {
         allow_new_validators: true,

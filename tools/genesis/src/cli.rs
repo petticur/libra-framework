@@ -1,13 +1,13 @@
-use clap::{Args, Parser, Subcommand};
-
 use crate::{
-    genesis_builder, parse_json, testnet_setup,
+    genesis_builder, parse_json,
     wizard::{GenesisWizard, GITHUB_TOKEN_FILENAME},
 };
-use libra_types::{core_types::fixtures::TestPersona, exports::NamedChain, global_config_dir};
-use std::{fs, net::Ipv4Addr, path::PathBuf};
+use clap::{Args, Parser, Subcommand};
+use libra_types::{exports::NamedChain, global_config_dir};
+use std::{fs, path::PathBuf};
+
 #[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(author, version, about, long_about = None, arg_required_else_help = true)]
 /// Generate genesis transactions for testnet and upgrades
 pub struct GenesisCli {
     #[clap(subcommand)]
@@ -47,7 +47,7 @@ impl GenesisCli {
                     github.name_github.to_owned(),
                     github_token,
                     data_path,
-                    github.local_framework,
+                    github.local_framework.to_owned(),
                     &mut recovery,
                     chain_name,
                     None,
@@ -61,26 +61,16 @@ impl GenesisCli {
                     chain_name,
                 )
                 .start_wizard(
-                    github.local_framework,
-                    github.json_legacy.clone(),
-                    github.token_github_file.clone(),
+                    github.local_framework.to_owned(),
+                    github.json_legacy.to_owned(),
+                    github.token_github_file.to_owned(),
                     false,
                 )
                 .await?;
             }
-
-            Some(Sub::Testnet {
-                me,
-                ip_list,
-                json_legacy,
-            }) => {
-                testnet_setup::setup(me, ip_list, chain_name, data_path, json_legacy.to_owned())
-                    .await?
-            }
-            _ => {
-                println!("\nIf you're looking for trouble \nYou came to the right place");
-            }
+            _ => {}
         }
+        println!("\nIf you're looking for trouble \nYou came to the right place\n");
         Ok(())
     }
 }
@@ -99,7 +89,7 @@ struct GithubArgs {
     name_github: String,
     /// uses the local framework build
     #[clap(short, long)]
-    local_framework: bool,
+    local_framework: Option<PathBuf>,
     /// path to file for legacy migration file
     #[clap(short, long)]
     json_legacy: Option<PathBuf>,
@@ -107,6 +97,7 @@ struct GithubArgs {
 
 #[derive(Subcommand)]
 enum Sub {
+    /// build a genesis file from the coordination git repo
     Build {
         /// github args
         #[clap(flatten)]
@@ -116,23 +107,10 @@ enum Sub {
         #[clap(long)]
         drop_list: Option<PathBuf>,
     }, // just do genesis without wizard
+    /// register to the genesis coordination git repository
     Register {
         /// github args
         #[clap(flatten)]
         github: GithubArgs,
-    },
-
-    /// sensible defaults for testnet, does not need a genesis repo
-    /// accounts are created from fixture mnemonics for alice, bob, carol, dave
-    Testnet {
-        /// which persona is this machine going to register as
-        #[clap(short, long)]
-        me: TestPersona,
-        /// list of IP addresses of each persona Alice, Bob, Carol, Dave
-        #[clap(short, long)]
-        ip_list: Vec<Ipv4Addr>,
-        /// path to file for legacy migration file
-        #[clap(short, long)]
-        json_legacy: Option<PathBuf>,
     },
 }

@@ -8,7 +8,7 @@ use diem_types::{
     transaction::{Transaction, WriteSetPayload},
 };
 use diem_vm_genesis::{GenesisConfiguration, Validator};
-use libra_types::legacy_types::legacy_recovery_v6::LegacyRecoveryV6;
+use libra_backwards_compatibility::legacy_recovery_v6::LegacyRecoveryV6;
 use std::{fs::File, io::Write, path::PathBuf};
 
 #[cfg(test)]
@@ -22,7 +22,6 @@ pub fn make_recovery_genesis_from_vec_legacy_recovery(
     genesis_vals: &[Validator],
     framework_release: &ReleaseBundle,
     chain_id: ChainId,
-    // supply_settings: Option<SupplySettings>,
     genesis_config: &GenesisConfiguration,
 ) -> Result<Transaction, Error> {
     // let supply_settings = supply_settings.unwrap_or_default();
@@ -53,13 +52,13 @@ pub fn save_genesis(gen_tx: &Transaction, output_path: &PathBuf) -> Result<(), E
 #[test]
 fn test_basic_genesis() {
     use diem_vm_genesis::TestValidator;
-    use libra_framework::head_release_bundle;
+    use libra_framework::testing_local_release_bundle;
     let test_validators = TestValidator::new_test_set(Some(4), Some(100_000_000));
     let validators: Vec<Validator> = test_validators.iter().map(|t| t.data.clone()).collect();
     let _tx = make_recovery_genesis_from_vec_legacy_recovery(
         &mut [],
         &validators,
-        &head_release_bundle(),
+        &testing_local_release_bundle(),
         ChainId::test(),
         &libra_genesis_default(NamedChain::TESTING),
     )
@@ -75,7 +74,7 @@ fn test_recovery_genesis() {
         write_set::TransactionWrite,
     };
     use diem_vm_genesis::TestValidator;
-    use libra_framework::head_release_bundle;
+    use libra_framework::testing_local_release_bundle;
 
     let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/single.json");
 
@@ -87,7 +86,7 @@ fn test_recovery_genesis() {
     let tx = make_recovery_genesis_from_vec_legacy_recovery(
         &mut recovery,
         &validators,
-        &head_release_bundle(),
+        &testing_local_release_bundle(),
         ChainId::test(),
         &libra_genesis_default(NamedChain::TESTING),
     )

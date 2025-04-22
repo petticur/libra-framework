@@ -6,7 +6,9 @@ module ol_framework::test_governance {
   use diem_framework::governance_proposal::GovernanceProposal;
   use diem_framework::voting;
   use diem_framework::timestamp;
-  // use diem_std::debug::print;
+  use ol_framework::ol_features_constants;
+  use std::features;
+
 
   #[test(root = @ol_framework, alice = @0x1000a, bob = @0x1000b)]
   fun gov_threshold_can_resolve_early(root: &signer, alice: &signer, bob: &signer) {
@@ -62,5 +64,15 @@ module ol_framework::test_governance {
     // it cannot resolve because the transaction hashes (of this test script) do no match.
     let (can_resolve, _err) = voting::check_resolvable_ex_hash<GovernanceProposal>(@ol_framework, prop_id);
     assert!(can_resolve, 73570007);
+  }
+
+
+  #[test(root = @ol_framework, alice = @0x1000a, marlon = @0x12345)]
+  fun test_enable_ol_features(root: &signer) {
+    let _vals = mock::genesis_n_vals(root, 2);
+    // case: set a dummy feature flag
+    features::change_feature_flags(root, vector[ol_features_constants::test_get_dummy_flag()], vector[]);
+    assert!(features::is_enabled(ol_features_constants::test_get_dummy_flag()), 7357002);
+    assert!(ol_features_constants::test_dummy_flag_enabled(), 7357003);
   }
 }
