@@ -2,6 +2,8 @@ name: publish binary releases
 on:
   push:
     branches:
+      # REMOVE THIS
+      - "new-releases-ci"
       # make binaries which may be ahead of releases to use in CI jobs
       - "ci-bins*"
       # nightly type releases
