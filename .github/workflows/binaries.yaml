@@ -22,7 +22,7 @@ jobs:
         run: |
           # For release testing we don't have a version to use from a tag
           # so we generate a stand in that's a time stamp
-          if [[ ${{ endsWith(${test_branch_name}, github.ref ) }} ]]; then
+          if [[ ${{ endsWith( env.test_branch_name, github.ref ) }} ]]; then
             tag=$(date +'%Y%m%d%H%M')
           else
             # This is a bit of a hack, but we need to get the tag name from the ref
@@ -35,7 +35,7 @@ jobs:
         id: create-release
         uses: softprops/action-gh-release@v1
         with:
-          draft: ${{ endsWith(${test_branch_name}, github.ref ) }}
+          draft: ${{ endsWith( env.test_branch_name, github.ref ) }}
           tag_name: ${{ steps.release-info.outputs.release-tag }}
 
   build:
