@@ -1,0 +1,41 @@
+name: build binaries
+
+on:
+  push:
+    branches:
+      - "ci-job-for-cli"
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest] # macos-latest is ARM, ubuntu-latest is x86
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          # Provisionally pinning version pre 1.81 sorting changes
+          toolchain: 1.80.1
+          override: true
+
+      - name: install dependencies
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: build-essential ca-certificates clang curl git libpq-dev libssl-dev pkg-config lsof lld libgmp-dev
+          version: 1.0
+        if: runner.os == 'Linux' # This action only works on Ubuntu
+
+      - name: build libra binary
+        # The conditional statement below looks like that because I couldn't
+        #  figure out how to put the RUSTFLAGS into a variable
+        run: |
+          if [[ ${{ runner.arch }} == "ARM64" ]]; then
+              RUSTFLAGS="--cfg tokio_unstable" cargo b --release -p libra
+          else
+              cargo b --release -p libra
+          fi
