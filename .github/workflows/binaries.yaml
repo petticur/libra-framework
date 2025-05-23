@@ -29,14 +29,8 @@ jobs:
           version: 1.0
         if: runner.os == 'Linux' # This action only works on Ubuntu
 
-      - name: set RUSTFLAGS for ARM64
-        if: runner.arch == 'ARM64'
+      - name: set RUSTFLAGS # Note this is necessary because the setting in .cargo/config.toml doesn't propagate to dependency builds
         run: echo "RUSTFLAGS=--cfg tokio_unstable" >> $GITHUB_ENV
-        shell: bash
-
-      - name: check RUSTFLAGS
-        if: runner.arch == 'ARM64'
-        run: echo $RUSTFLAGS
         shell: bash
 
       - name: build libra binary
