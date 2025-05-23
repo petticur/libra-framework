@@ -29,7 +29,7 @@ jobs:
             tag=$(echo "${{ github.ref }}" | cut -d'/' -f3)
           fi
           echo "release-tag=${tag}" >> $GITHUB_OUTPUT
-          shell: bash
+        shell: bash
 
       - name: create release
         id: create-release
@@ -49,6 +49,17 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v3
+
+      - name: get executable binary_suffix
+        id: platform-info
+        run: |
+          if [[ ${{ runner.os }} == "Windows" ]]; then
+            binary_suffix=".exe"
+          else
+            binary_suffix=""
+          fi
+          echo "binary_suffix=${binary_suffix}" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: install rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1 # We need 1.12.0 or later for Windows ARM64 support
@@ -73,18 +84,13 @@ jobs:
           cargo b --release -p libra
 
       - name: check binary runs-on
-        run: target/release/libra version
+        run: target/release/libra${{ steps.platform-info.binary_suffix }} version
         shell: bash
 
       - name: rename to plafrorm specific name
         id: artifact-info
         run: |
-          if [[ ${{ runner.os }} == "Windows" ]]; then
-            binary_suffix=".exe"
-          else
-            binary_suffix=""
-          fi
-          echo "artifact_name=target/release/libra-${{ runner.os }}-${{ runner.arch }}${binary_suffix}" >> $GITHUB_OUTPUT
+          echo "artifact_name=target/release/libra-${{ runner.os }}-${{ runner.arch }}${{ steps.platform-info.binary_suffix }}" >> $GITHUB_OUTPUT
           mv target/release/libra${binary_suffix} ${artifact_name}
         shell: bash
 
