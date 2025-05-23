@@ -10,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest] # macos-latest is ARM, ubuntu-latest is x86
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-14-large, windows-latest] # macos-latest is ARM, ubuntu-latest is x86
     steps:
       - name: checkout
         uses: actions/checkout@v3
