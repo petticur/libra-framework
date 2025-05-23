@@ -38,3 +38,23 @@ jobs:
       - name: build libra binary
         run: |
           cargo b --release -p libra
+
+      - name: check binary runs-on
+        run: target/release/libra --version
+        shell: bash
+
+      - name: rename to plafrorm specific name
+        run: |
+          if [[ ${{ runner.os }} == "Windows" ]]; then
+            binary_suffix=".exe"
+          else
+            binary_suffix=""
+          fi
+          echo "artifact_name=target/release/libra-${{ runner.os }}-${{ runner.arch }}${binary_suffix}" >> $GITHUB_ENV
+          mv target/release/libra${binary_suffix} ${artifact_name}
+        shell: bash
+
+      - name: print artifact name
+        run: |
+          echo "artifact_name: ${{ env.artifact_name }}"
+        shell: bash
