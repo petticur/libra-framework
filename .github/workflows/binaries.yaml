@@ -12,6 +12,8 @@ env:
 
 jobs:
   create_release:
+    permissions:
+      contents: write # See: https://github.com/orgs/community/discussions/68252
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -39,6 +41,8 @@ jobs:
           tag_name: ${{ steps.release-info.outputs.release-tag }}
 
   build:
+    permissions:
+      contents: write
     strategy:
       matrix:
         # windows-11-arm currently fails build due to https://github.com/briansmith/ring/issues/1167
