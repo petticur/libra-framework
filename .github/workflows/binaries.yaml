@@ -4,8 +4,40 @@ on:
   push:
     branches:
       - "ci-job-for-cli"
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]*"
+
+env:
+  test_branch_name: "ci-job-for-cli" # Branch which should be named above, used for release process testing
 
 jobs:
+  create_release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: generate release info
+        id: release-info
+        run: |
+          # For release testing we don't have a version to use from a tag
+          # so we generate a stand in that's a time stamp
+          if [[ ${{ endsWith(${test_branch_name}, github.ref ) }} ]]; then
+            tag=$(date +'%Y%m%d%H%M')
+          else
+            # This is a bit of a hack, but we need to get the tag name from the ref
+            tag=$(echo "${{ github.ref }}" | cut -d'/' -f3)
+          fi
+          echo "release-tag=${tag}" >> $GITHUB_OUTPUT
+          shell: bash
+
+      - name: create release
+        id: create-release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: ${{ endsWith(${test_branch_name}, github.ref ) }}
+          tag_name: ${{ steps.release-info.outputs.release-tag }}
+
   build:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -40,21 +72,29 @@ jobs:
           cargo b --release -p libra
 
       - name: check binary runs-on
-        run: target/release/libra --version
+        run: target/release/libra version
         shell: bash
 
       - name: rename to plafrorm specific name
+        id: artifact-info
         run: |
           if [[ ${{ runner.os }} == "Windows" ]]; then
             binary_suffix=".exe"
           else
             binary_suffix=""
           fi
-          echo "artifact_name=target/release/libra-${{ runner.os }}-${{ runner.arch }}${binary_suffix}" >> $GITHUB_ENV
+          echo "artifact_name=target/release/libra-${{ runner.os }}-${{ runner.arch }}${binary_suffix}" >> $GITHUB_OUTPUT
           mv target/release/libra${binary_suffix} ${artifact_name}
         shell: bash
 
-      - name: print artifact name
+      - name: print binary artifact name
         run: |
-          echo "artifact_name: ${{ env.artifact_name }}"
+          echo "artifact_name: ${{ steps.artifact-info.artifact_name }}"
         shell: bash
+
+      - name: upload binary to release # upload the binary as a release artifact
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.release-info.outputs.release-tag }}
+          files: ${{ steps.artifact-info.artifact_name }}
+          overwrite: true
