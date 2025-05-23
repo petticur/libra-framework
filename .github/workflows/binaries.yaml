@@ -31,7 +31,7 @@ jobs:
 
       - name: set RUSTFLAGS for ARM64
         if: runner.arch == 'ARM64'
-        run: echo "RUSTFLAGS=\"--cfg tokio_unstable\"" >> $GITHUB_ENV
+        run: echo "RUSTFLAGS=--cfg tokio_unstable" >> $GITHUB_ENV
         shell: bash
 
       - name: check RUSTFLAGS
