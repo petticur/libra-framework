@@ -5,11 +5,6 @@ on:
     branches:
       - "ci-job-for-cli"
 
-env:
-  # This is needed to set RUSTGFLAGS for the build step below because other
-  # approaches depend on having a Unix shell, which is not available on Windows
-  RUSTFLAGS: ${{ runner.arch == 'ARM64' && '--cfg tokio_unstable"' || '' }}
-
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -33,6 +28,11 @@ jobs:
           packages: build-essential ca-certificates clang curl git libpq-dev libssl-dev pkg-config lsof lld libgmp-dev
           version: 1.0
         if: runner.os == 'Linux' # This action only works on Ubuntu
+
+      - name: Set RUSTFLAGS for ARM64
+        if: runner.arch == 'ARM64'
+        run: echo "RUSTFLAGS='--cfg tokio_unstable'" >> $GITHUB_ENV
+        shell: bash
 
       - name: build libra binary
         run: |
