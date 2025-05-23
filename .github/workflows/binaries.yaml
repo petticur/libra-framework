@@ -5,6 +5,11 @@ on:
     branches:
       - "ci-job-for-cli"
 
+env:
+  # This is needed to set RUSTGFLAGS for the build step below because other
+  # approaches depend on having a Unix shell, which is not available on Windows
+  RUSTFLAGS: ${{ runner.arch == 'ARM64' && '--cfg tokio_unstable"' || '' }}
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -30,11 +35,5 @@ jobs:
         if: runner.os == 'Linux' # This action only works on Ubuntu
 
       - name: build libra binary
-        # The conditional statement below looks like that because I couldn't
-        #  figure out how to put the RUSTFLAGS into a variable
         run: |
-          if [[ ${{ runner.arch }} == "ARM64" ]]; then
-              RUSTFLAGS="--cfg tokio_unstable" cargo b --release -p libra
-          else
-              cargo b --release -p libra
-          fi
+          cargo b --release -p libra
