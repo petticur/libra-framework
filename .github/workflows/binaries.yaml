@@ -19,9 +19,9 @@ jobs:
 
       - name: generate release info
         id: release-info
+        # For release testing we don't have a version to use from a tag
+        # so we generate a stand in that's a time stamp
         run: |
-          # For release testing we don't have a version to use from a tag
-          # so we generate a stand in that's a time stamp
           if [[ ${{ endsWith( env.test_branch_name, github.ref ) }} ]]; then
             tag=$(date +'%Y%m%d%H%M')
           else
@@ -39,12 +39,13 @@ jobs:
           tag_name: ${{ steps.release-info.outputs.release-tag }}
 
   build:
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         # windows-11-arm currently fails build due to https://github.com/briansmith/ring/issues/1167
         # macos-latest is ARM, ubuntu-latest is x86, windows-latest is x86
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-13, windows-latest]
+    runs-on: ${{ matrix.os }}
+    needs: create_release
     steps:
       - name: checkout
         uses: actions/checkout@v3
