@@ -12,6 +12,7 @@ env:
 
 jobs:
   create_release:
+    name: Create the GitHub Release
     permissions:
       contents: write # See: https://github.com/orgs/community/discussions/68252
     runs-on: ubuntu-latest
@@ -41,6 +42,7 @@ jobs:
           tag_name: ${{ steps.release-info.outputs.release-tag }}
 
   build:
+    name: Build and upload binaries
     permissions:
       contents: write
     strategy:
@@ -87,14 +89,15 @@ jobs:
         run: |
           cargo b --release -p libra
 
-      - name: check binary runs-on
+      - name: check binary runs on this platform
         run: target/release/libra${{ steps.platform-info.binary_suffix }} version
         shell: bash
 
       - name: rename to plafrorm specific name
         id: artifact-info
         run: |
-          echo "artifact_name=target/release/libra-${{ runner.os }}-${{ runner.arch }}${{ steps.platform-info.binary_suffix }}" >> $GITHUB_OUTPUT
+          artifact_name=target/release/libra-${{ runner.os }}-${{ runner.arch }}${{ steps.platform-info.binary_suffix }}
+          echo "artifact_name=${artifact_name}" >> $GITHUB_OUTPUT
           mv target/release/libra${binary_suffix} ${artifact_name}
         shell: bash
 
