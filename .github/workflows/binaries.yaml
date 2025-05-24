@@ -112,5 +112,5 @@ jobs:
       - name: upload binary to release # upload the binary as a release artifact
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.release-info.outputs.release-tag }}
+          tag_name: ${{ needs.create_release.outputs.release-tag }}
           files: ${{ steps.artifact-info.outputs.artifact_name }}
