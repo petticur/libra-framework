@@ -1,11 +1,17 @@
 name: build binaries
 
+# Note: this workflow should really depend on a workflow that runs on-platform tests
+# because as is what we're doing here is building a binary blind that we have no idea
+# whether it works or not beyond being able to just execute the binary.
+# This is more important here than in other cases because it's highly likley
+# there are _no_ tests being run on most of the platforms we're building here.
+
 on:
   push:
     branches:
-      - "ci-job-for-cli"
+      - "ci-job-for-cli" # Push changes to this branch to initiate a draft release to test this workflow
     tags:
-      - "[0-9]+.[0-9]+.[0-9]*"
+      - "[0-9]+.[0-9]+.[0-9]*" # Normal trigger is a tag created of the form x.y.z (note not vx.y.z)
 
 env:
   test_branch_name: "ci-job-for-cli" # Branch which should be named above, used for release process testing
@@ -22,12 +28,19 @@ jobs:
       - name: checkout
         uses: actions/checkout@v3
 
+      - name: print build info
+        run: |
+          echo "github.ref: $ {{ github.ref }}"
+          echo "test branch: $ {{ env.test_branch_name }}"
+          echo "test run: ${{ endsWith( env.test_branch_name, github.ref ) }}"
+        shell: bash
+
       - name: generate release info
         id: release-info
         # For release testing we don't have a version to use from a tag
         # so we generate a stand in that's a time stamp
         run: |
-          if [[ ${{ endsWith( env.test_branch_name, github.ref ) }} ]]; then
+          if [[ ${{ endsWith( env.test_branch_name, github.ref ) }} == 'true' ]]; then
             tag=$(date +'%Y%m%d%H%M')
           else
             # This is a bit of a hack, but we need to get the tag name from the ref
