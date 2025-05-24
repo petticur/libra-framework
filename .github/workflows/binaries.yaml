@@ -30,8 +30,8 @@ jobs:
 
       - name: print build info
         run: |
-          echo "github.ref: $ {{ github.ref }}"
-          echo "test branch: $ {{ env.test_branch_name }}"
+          echo "github.ref: ${{ github.ref }}"
+          echo "test branch: ${{ env.test_branch_name }}"
           echo "test run: ${{ endsWith( env.test_branch_name, github.ref ) }}"
         shell: bash
 
