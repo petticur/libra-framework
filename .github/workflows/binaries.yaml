@@ -93,15 +93,17 @@ jobs:
           cargo b --release -p libra
 
       - name: check binary runs on this platform
-        run: target/release/libra${{ steps.platform-info.binary_suffix }} version
+        run: target/release/libra version
         shell: bash
 
-      - name: rename to plafrorm specific name
+      - name: rename to platform specific name
         id: artifact-info
         run: |
-          artifact_name=target/release/libra-${{ runner.os }}-${{ runner.arch }}${{ steps.platform-info.binary_suffix }}
+          artifact_name=target/release/libra-${{ runner.os }}-${{ runner.arch }}${{ steps.platform-info.outputs.binary_suffix }}
           echo "artifact_name=${artifact_name}" >> $GITHUB_OUTPUT
-          mv target/release/libra${binary_suffix} ${artifact_name}
+          build_output=target/release/libra${binary_suffix}
+          echo "Renaming: ${build_output} to: ${artifact_name}"
+          mv ${build_output} ${artifact_name}
         shell: bash
 
       - name: print binary artifact name
