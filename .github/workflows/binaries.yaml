@@ -32,7 +32,7 @@ jobs:
         run: |
           echo "github.ref: ${{ github.ref }}"
           echo "test branch: ${{ env.test_branch_name }}"
-          echo "test run: ${{ endsWith( env.test_branch_name, github.ref ) }}"
+          echo "test run: ${{ endsWith( github.ref, env.test_branch_name ) }}"
         shell: bash
 
       - name: generate release info
@@ -40,12 +40,13 @@ jobs:
         # For release testing we don't have a version to use from a tag
         # so we generate a stand in that's a time stamp
         run: |
-          if [[ ${{ endsWith( env.test_branch_name, github.ref ) }} == 'true' ]]; then
+          if [[ ${{ endsWith( github.ref, env.test_branch_name ) }} == 'true' ]]; then
             tag=$(date +'%Y%m%d%H%M')
           else
             # This is a bit of a hack, but we need to get the tag name from the ref
             tag=$(echo "${{ github.ref }}" | cut -d'/' -f3)
           fi
+          echo "release-tag: ${tag}"
           echo "release-tag=${tag}" >> $GITHUB_OUTPUT
         shell: bash
 
@@ -53,9 +54,9 @@ jobs:
         id: create-release
         uses: softprops/action-gh-release@v2
         with:
-          draft: ${{ endsWith( env.test_branch_name, github.ref ) }}
+          draft: ${{ endsWith( github.ref, env.test_branch_name ) }}
           tag_name: ${{ steps.release-info.outputs.release-tag }}
-          generate_release_notes: false
+          generate_release_notes: false # This doesn't seem to work -- it still generates release notes
 
   build:
     name: Build and upload binaries
@@ -63,7 +64,7 @@ jobs:
       contents: write
     strategy:
       matrix:
-        # windows-11-arm currently fails build due to https://github.com/briansmith/ring/issues/1167
+        # windows-11-arm currently fails build due to https://github.com/0LNetworkCommunity/libra-framework/issues/405
         # macos-latest is ARM, ubuntu-latest is x86, windows-latest is x86
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-13, windows-latest]
     runs-on: ${{ matrix.os }}
