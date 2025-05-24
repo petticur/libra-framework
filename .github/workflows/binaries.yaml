@@ -9,12 +9,12 @@ name: build binaries
 on:
   push:
     branches:
-      - "ci-job-for-cli" # Push changes to this branch to initiate a draft release to test this workflow
+      - "ci-test-binaries" # Push changes to this branch to initiate a draft release to test this workflow
     tags:
       - "[0-9]+.[0-9]+.[0-9]*" # Normal trigger is a tag created of the form x.y.z (note not vx.y.z)
 
 env:
-  test_branch_name: "ci-job-for-cli" # Branch which should be named above, used for release process testing
+  test_branch_name: "ci-test-binaries" # Branch which should be named above, used for release process testing
 
 jobs:
   create_release:
